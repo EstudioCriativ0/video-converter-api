@@ -10,7 +10,7 @@ ffmpeg.setFfmpegPath(ffmpegPath);
 const app = express();
 const port = process.env.PORT || 3000;
 
-// CORS — libera o front-end
+// CORS — libera o front-end (depois tu pode trocar o '*' pelo domínio do teu site, se quiser)
 app.use(cors({ origin: '*' }));
 
 // Upload temporário
@@ -29,10 +29,16 @@ app.post('/convert', upload.single('video'), (req, res) => {
   const outputPath = inputPath + '.mp4';
 
   ffmpeg(inputPath)
+    // codecs de vídeo e áudio
+    .videoCodec('libx264')
+    .audioCodec('aac')
+    // opções para deixar MAIS LEVE pro servidor (evitar SIGKILL)
     .outputOptions([
-      '-c:v libx264',
-      '-c:a aac',
-      '-movflags +faststart'
+      '-preset veryfast',       // conversão mais rápida
+      '-movflags +faststart',   // ajuda no playback web
+      '-vf scale=720:-2',       // limita largura em ~720px (reduz resolução)
+      '-maxrate 1500k',         // limita taxa de bits de vídeo
+      '-bufsize 3000k'          // controla o buffer de bitrate
     ])
     .toFormat('mp4')
     .on('end', () => {
@@ -43,8 +49,10 @@ app.post('/convert', upload.single('video'), (req, res) => {
         }
 
         res.setHeader('Content-Type', 'video/mp4');
+        res.setHeader('Content-Disposition', 'attachment; filename=video.mp4');
         res.send(data);
 
+        // Apaga arquivos temporários
         fs.unlink(inputPath, () => {});
         fs.unlink(outputPath, () => {});
       });
@@ -53,12 +61,15 @@ app.post('/convert', upload.single('video'), (req, res) => {
       console.error('Erro ao converter vídeo:', err);
       res.status(500).json({ error: 'Erro na conversão.' });
 
+      // Limpa arquivos temporários mesmo em caso de erro
       fs.unlink(inputPath, () => {});
-      if (fs.existsSync(outputPath)) fs.unlink(outputPath, () => {});
+      if (fs.existsSync(outputPath)) {
+        fs.unlink(outputPath, () => {});
+      }
     })
     .save(outputPath);
 });
 
 app.listen(port, () => {
-  console.log(`Servidor rodando na porta ${port}`);
+  console.log(Servidor rodando na porta ${port});
 });
