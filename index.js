@@ -4,64 +4,93 @@ const multer = require('multer');
 const ffmpegPath = require('ffmpeg-static');
 const ffmpeg = require('fluent-ffmpeg');
 const fs = require('fs');
+const os = require('os');
+const path = require('path');
 
 ffmpeg.setFfmpegPath(ffmpegPath);
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-// CORS — libera o front-end (depois tu pode trocar o '*' pelo domínio do teu site, se quiser)
+// CORS liberado
 app.use(cors({ origin: '*' }));
 
-// Upload temporário
-const upload = multer({ dest: 'uploads/' });
+// ====== PASTA TEMPORÁRIA SEGURA ======
+const uploadDir = path.join(os.tmpdir(), 'uploads');
 
+// Garante que a pasta existe
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+  console.log('Pasta de upload criada em:', uploadDir);
+}
+
+// Multer usando a pasta temporária
+const upload = multer({ dest: uploadDir });
+
+// Rota de teste
 app.get('/', (req, res) => {
-  res.send('API de conversão ativa 🚀');
+  res.send('API rodando! 🚀');
 });
 
+// ====== ROTA DE CONVERSÃO ======
 app.post('/convert', upload.single('video'), (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'Nenhum vídeo enviado.' });
   }
 
   const inputPath = req.file.path;
-  const outputPath = inputPath + '.mp4';
+  const outputPath = path.join(uploadDir, `${req.file.filename}-convertido.mp4`);
+
+  console.log('Iniciando conversão...');
+  console.log('Arquivo de entrada:', inputPath);
+  console.log('Arquivo de saída:', outputPath);
 
   ffmpeg(inputPath)
-    // codecs de vídeo e áudio
     .videoCodec('libx264')
     .audioCodec('aac')
-    // opções para deixar MAIS LEVE pro servidor (evitar SIGKILL)
     .outputOptions([
-      '-preset veryfast',       // conversão mais rápida
-      '-movflags +faststart',   // ajuda no playback web
-      '-vf scale=720:-2',       // limita largura em ~720px (reduz resolução)
-      '-maxrate 1500k',         // limita taxa de bits de vídeo
-      '-bufsize 3000k'          // controla o buffer de bitrate
+      '-preset veryfast',
+      '-movflags +faststart',
+      '-vf scale=720:-2', // 720px de largura, altura proporcional
+      '-maxrate 1500k',
+      '-bufsize 3000k'
     ])
     .toFormat('mp4')
     .on('end', () => {
-      fs.readFile(outputPath, (err, data) => {
-        if (err) {
-          console.error('Erro lendo o arquivo MP4:', err);
-          return res.status(500).json({ error: 'Erro ao ler vídeo convertido.' });
+      console.log('Conversão concluída com sucesso.');
+
+      // Envia o arquivo por stream
+      res.setHeader('Content-Type', 'video/mp4');
+      res.setHeader('Content-Disposition', 'attachment; filename=video.mp4');
+
+      const stream = fs.createReadStream(outputPath);
+
+      stream.on('error', (err) => {
+        console.error('Erro ao ler arquivo MP4:', err);
+        if (!res.headersSent) {
+          res.status(500).json({ error: 'Erro ao ler vídeo convertido.' });
         }
-
-        res.setHeader('Content-Type', 'video/mp4');
-        res.setHeader('Content-Disposition', 'attachment; filename=video.mp4');
-        res.send(data);
-
-        // Apaga arquivos temporários
+        // Limpa arquivos mesmo com erro
         fs.unlink(inputPath, () => {});
         fs.unlink(outputPath, () => {});
       });
+
+      // Quando terminar de enviar, apaga os arquivos temporários
+      stream.on('close', () => {
+        fs.unlink(inputPath, () => {});
+        fs.unlink(outputPath, () => {});
+      });
+
+      stream.pipe(res);
     })
     .on('error', (err) => {
       console.error('Erro ao converter vídeo:', err);
-      res.status(500).json({ error: 'Erro na conversão.' });
 
-      // Limpa arquivos temporários mesmo em caso de erro
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Erro na conversão.' });
+      }
+
+      // Limpa arquivos temporários
       fs.unlink(inputPath, () => {});
       if (fs.existsSync(outputPath)) {
         fs.unlink(outputPath, () => {});
@@ -70,6 +99,7 @@ app.post('/convert', upload.single('video'), (req, res) => {
     .save(outputPath);
 });
 
+// Sobe o servidor
 app.listen(port, () => {
-  console.log(Servidor rodando na porta ${port});
+  console.log(`Servidor rodando na porta ${port}`);
 });
