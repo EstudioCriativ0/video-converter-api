@@ -51,9 +51,13 @@ app.post('/convert', upload.single('video'), (req, res) => {
     .outputOptions([
       '-preset veryfast',
       '-movflags +faststart',
-      '-vf scale=720:-2', // 720px de largura, altura proporcional
-      '-maxrate 1500k',
-      '-bufsize 3000k'
+
+      // 🔽 Deixa o vídeo mais leve e compatível com Android
+      '-vf scale=540:-2,fps=24', // largura ~540px, altura proporcional, 24 fps
+      '-pix_fmt yuv420p',        // formato de cor mais compatível
+      '-profile:v baseline',     // perfil de compatibilidade ampla
+      '-level 3.0',              // nível seguro pra maioria dos Androids
+      '-crf 28'                  // qualidade/bitrate mais leve (quanto maior, mais leve)
     ])
     .toFormat('mp4')
     .on('end', () => {
@@ -103,3 +107,4 @@ app.post('/convert', upload.single('video'), (req, res) => {
 app.listen(port, () => {
   console.log(`Servidor rodando na porta ${port}`);
 });
+
