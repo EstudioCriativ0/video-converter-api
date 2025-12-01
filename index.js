@@ -38,6 +38,11 @@ app.post('/convert', upload.single('video'), (req, res) => {
     return res.status(400).json({ error: 'Nenhum vídeo enviado.' });
   }
 
+  const device = req.query.device; // 'ios' ou 'android'
+  const isIos = device === 'ios';
+
+  console.log('Dispositivo informado:', device);
+
   const inputPath = req.file.path;
   const outputPath = path.join(uploadDir, `${req.file.filename}-convertido.mp4`);
 
@@ -45,20 +50,34 @@ app.post('/convert', upload.single('video'), (req, res) => {
   console.log('Arquivo de entrada:', inputPath);
   console.log('Arquivo de saída:', outputPath);
 
+  // Opções específicas para iOS (mais qualidade)
+  const iosOptions = [
+    '-preset veryfast',
+    '-movflags +faststart',
+    '-vf scale=720:-2,fps=30', // mais definição e fps maior
+    '-pix_fmt yuv420p',
+    '-profile:v high',
+    '-level 4.0',
+    '-crf 24' // mais qualidade, arquivo maior
+  ];
+
+  // Opções específicas para Android (mais leve)
+  const androidOptions = [
+    '-preset veryfast',
+    '-movflags +faststart',
+    '-vf scale=480:-2,fps=24', // mais leve
+    '-pix_fmt yuv420p',
+    '-profile:v baseline',
+    '-level 3.0',
+    '-crf 30' // mais comprimido, ideal pra não travar
+  ];
+
+  const chosenOptions = isIos ? iosOptions : androidOptions;
+
   ffmpeg(inputPath)
     .videoCodec('libx264')
     .audioCodec('aac')
-    .outputOptions([
-      '-preset veryfast',
-      '-movflags +faststart',
-
-      // 🔽 Deixa o vídeo mais leve e compatível com Android
-      '-vf scale=540:-2,fps=24', // largura ~540px, altura proporcional, 24 fps
-      '-pix_fmt yuv420p',        // formato de cor mais compatível
-      '-profile:v baseline',     // perfil de compatibilidade ampla
-      '-level 3.0',              // nível seguro pra maioria dos Androids
-      '-crf 28'                  // qualidade/bitrate mais leve (quanto maior, mais leve)
-    ])
+    .outputOptions(chosenOptions)
     .toFormat('mp4')
     .on('end', () => {
       console.log('Conversão concluída com sucesso.');
@@ -107,4 +126,3 @@ app.post('/convert', upload.single('video'), (req, res) => {
 app.listen(port, () => {
   console.log(`Servidor rodando na porta ${port}`);
 });
-
