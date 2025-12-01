@@ -38,7 +38,8 @@ app.post('/convert', upload.single('video'), (req, res) => {
     return res.status(400).json({ error: 'Nenhum vídeo enviado.' });
   }
 
-  const device = req.query.device; // 'ios' ou 'android'
+  // 'ios' ou 'android' vindo do front: ?device=ios / ?device=android
+  const device = req.query.device;
   const isIos = device === 'ios';
 
   console.log('Dispositivo informado:', device);
@@ -54,22 +55,25 @@ app.post('/convert', upload.single('video'), (req, res) => {
   const iosOptions = [
     '-preset veryfast',
     '-movflags +faststart',
-    '-vf scale=720:-2,fps=30', // mais definição e fps maior
+    '-vf scale=720:-2', // boa definição
+    '-r 30',            // força 30 fps constantes
     '-pix_fmt yuv420p',
     '-profile:v high',
     '-level 4.0',
-    '-crf 24' // mais qualidade, arquivo maior
+    '-crf 24'           // mais qualidade, arquivo maior
   ];
 
-  // Opções específicas para Android (mais leve)
+  // Opções específicas para Android (equilíbrio entre leve e estável)
   const androidOptions = [
     '-preset veryfast',
     '-movflags +faststart',
-    '-vf scale=480:-2,fps=24', // mais leve
+    '-vf scale=540:-2', // um pouco menor que iPhone, ainda bonito
+    '-r 30',            // força 30 fps constantes
+    '-vsync 2',         // ajuda a sincronizar frames e evitar "engasgos"
     '-pix_fmt yuv420p',
     '-profile:v baseline',
     '-level 3.0',
-    '-crf 30' // mais comprimido, ideal pra não travar
+    '-crf 25'           // qualidade ok, sem ficar tão pesado quanto 24
   ];
 
   const chosenOptions = isIos ? iosOptions : androidOptions;
@@ -126,3 +130,4 @@ app.post('/convert', upload.single('video'), (req, res) => {
 app.listen(port, () => {
   console.log(`Servidor rodando na porta ${port}`);
 });
+
