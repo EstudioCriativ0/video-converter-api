@@ -55,25 +55,22 @@ app.post('/convert', upload.single('video'), (req, res) => {
   const iosOptions = [
     '-preset veryfast',
     '-movflags +faststart',
-    '-vf scale=720:-2', // boa definição
-    '-r 30',            // força 30 fps constantes
+    '-vf scale=720:-2,fps=30', // boa definição, 30 fps
     '-pix_fmt yuv420p',
     '-profile:v high',
     '-level 4.0',
-    '-crf 24'           // mais qualidade, arquivo maior
+    '-crf 24' // qualidade alta, arquivo um pouco maior
   ];
 
-  // Opções específicas para Android (equilíbrio entre leve e estável)
+  // Opções específicas para Android (mais leve, mas estável)
   const androidOptions = [
     '-preset veryfast',
     '-movflags +faststart',
-    '-vf scale=540:-2', // um pouco menor que iPhone, ainda bonito
-    '-r 30',            // força 30 fps constantes
-    '-vsync 2',         // ajuda a sincronizar frames e evitar "engasgos"
+    '-vf scale=480:-2,fps=24', // um pouco menor e 24 fps pra aliviar
     '-pix_fmt yuv420p',
     '-profile:v baseline',
     '-level 3.0',
-    '-crf 25'           // qualidade ok, sem ficar tão pesado quanto 24
+    '-crf 30' // bem mais comprimido, menos peso pro Android
   ];
 
   const chosenOptions = isIos ? iosOptions : androidOptions;
